@@ -6,7 +6,7 @@ class Program
 {
     static void Main()
     {
-        int[] integers ={4,3,6,7,10,26,100,40,21,14,12,22,148,29,18,81,28,31,27,20};
+        int[] integers ={4,3,6,7,10,26,99,40,21,14,12,22,148,29,18,81,28,31,27,20};
 
         List<string> binaryString = integers.Select(n => Convert.ToString(n,2)).ToList();
 

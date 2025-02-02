@@ -1,0 +1,33 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+
+namespace A
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            try
+            {
+                string[] input = File.ReadAllLines("input.txt");
+                double[] cords = input[0].Split().Select(double.Parse).ToArray;
+                double w = double.Parce(input[1]);
+                double finish = input[2].Split().Select(double.Parse).ToArray;
+                int n = int.Parce(input[3]);
+                List<Tuple<double, double, double>> turns = new List<Tuple<double, double, double>>();
+                for (int i=0;i<n;i++)
+                {
+                    double[] turn = input[4+i].Split().Select(double.Parse).ToArray();
+                    turns.Add(Tuple.Create(turn[0], turn[1], turn[2]));
+                }
+                double x1 = cords[0], y1 = cords[1];
+                double x1 = cords[2], y1 = cords[3];
+                double d = x1-x2;
+                double L = y1-y2;
+                
+            }
+        }
+    }
+}

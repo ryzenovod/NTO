@@ -1,45 +1,89 @@
 import sys
 import math
 
-EPS = 10**-9
 
-
-def dot(a, b):
-    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-
-
-def sub(a, b):
-    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
-
-
-def cross(a, b):
-    return (
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    )
-
-
-def read_input():
+def main():
     data = sys.stdin.read().strip().split()
     if not data:
-        return None
+        print(0)
+        return
+
     it = iter(data)
 
-    n = int(next(it))
+    try:
+        n = int(next(it))
+    except StopIteration:
+        print(0)
+        return
+
     verts = []
+    sx = sy = sz = 0.0
     for _ in range(n):
         x = float(next(it))
         y = float(next(it))
         z = float(next(it))
         verts.append((x, y, z))
+        sx += x
+        sy += y
+        sz += z
+
+    if n == 0:
+        print(0)
+        return
+
+    cx = sx / n
+    cy = sy / n
+    cz = sz / n
+    centroid = (cx, cy, cz)
 
     m = int(next(it))
-    faces = []
+
+    planes = []
+
     for _ in range(m):
         k = int(next(it))
-        idx = [int(next(it)) for __ in range(k)]
-        faces.append(idx)
+        idx0 = int(next(it))
+        idx1 = int(next(it))
+        idx2 = int(next(it))
+
+        v0 = verts[idx0]
+        v1 = verts[idx1]
+        v2 = verts[idx2]
+
+        for __ in range(k - 3):
+            _ = next(it)
+
+        ax = v1[0] - v0[0]
+        ay = v1[1] - v0[1]
+        az = v1[2] - v0[2]
+        bx = v2[0] - v0[0]
+        by = v2[1] - v0[1]
+        bz = v2[2] - v0[2]
+
+        nx = ay * bz - az * by
+        ny = az * bx - ax * bz
+        nz = ax * by - ay * bx
+
+        len2 = nx * nx + ny * ny + nz * nz
+        if len2 < 1e-18:
+            continue  
+
+        d = -(nx * v0[0] + ny * v0[1] + nz * v0[2])
+
+        s = nx * centroid[0] + ny * centroid[1] + nz * centroid[2] + d
+        if s > 0.0:
+            nx = -nx
+            ny = -ny
+            nz = -nz
+            d = -d
+
+        length = math.sqrt(nx * nx + ny * ny + nz * nz)
+        nx /= length
+        ny /= length
+        nz /= length
+        d /= length
+
+        planes.append((nx, ny, nz, d))
 
     X0 = float(next(it))
     Y0 = float(next(it))
@@ -50,143 +94,73 @@ def read_input():
     ta = float(next(it))
     tb = float(next(it))
 
-    return verts, faces, (X0, Y0, Z0), (U, V, W), ta, tb
-
-
-def build_planes(verts, faces):
-    n_verts = len(verts)
-    cx = sum(p[0] for p in verts) / n_verts
-    cy = sum(p[1] for p in verts) / n_verts
-    cz = sum(p[2] for p in verts) / n_verts
-    centroid = (cx, cy, cz)
-
-    planes = []
-
-    for idx in faces:
-        p0 = verts[idx[0]]
-        normal = None
-
-        for j in range(1, len(idx) - 1):
-            p1 = verts[idx[j]]
-            p2 = verts[idx[j + 1]]
-            e1 = sub(p1, p0)
-            e2 = sub(p2, p0)
-            nvec = cross(e1, e2)
-            if dot(nvec, nvec) > EPS:
-                normal = nvec
-                break
-
-        length = math.sqrt(dot(normal, normal))
-        nu = (normal[0] / length, normal[1] / length, normal[2] / length)
-        h = dot(nu, p0)
-
-        if dot(nu, centroid) - h > 0:
-            nu = (-nu[0], -nu[1], -nu[2])
-            h = -h
-
-        planes.append((nu, h))
-
-    return planes
-
-
-def solve():
-    parsed = read_input()
-    if parsed is None:
-        return
-
-    verts, faces, C1, L, ta, tb = parsed
     if ta > tb:
         ta, tb = tb, ta
 
-    planes = build_planes(verts, faces)
-
-    Lx, Ly, Lz = L
-    Llen = math.sqrt(Lx * Lx + Ly * Ly + Lz * Lz)
-    if Llen < EPS:
+    L2 = U * U + V * V + W * W
+    if L2 < 1e-18:
         print(0)
         return
 
-    L_hat = (Lx / Llen, Ly / Llen, Lz / Llen)
+    L_norm = math.sqrt(L2)
+    Lhx = U / L_norm
+    Lhy = V / L_norm
+    Lhz = W / L_norm
 
-    def ok(R):
-        low = -(10**60)
-        high = 10**60
+    Pa_x = X0 + U * ta
+    Pa_y = Y0 + V * ta
+    Pa_z = Z0 + W * ta
 
-        for n, h in planes:
-            a = dot(n, L)
-            b = dot(n, C1)
-            proj = dot(n, L_hat)
-            k_sq = 1.0 - proj * proj
-            if k_sq < 0.0:
-                k_sq = 0.0
-            k = math.sqrt(k_sq)
+    Pb_x = X0 + U * tb
+    Pb_y = Y0 + V * tb
+    Pb_z = Z0 + W * tb
 
-            rhs = h - b - R * k
+    EPS_AXIS = 1e-9
+    EPS_PARALLEL = 1e-12
+    EPS_R = 1e-9
 
-            if abs(a) < EPS:
-                if rhs < -1e-9:
-                    return False
-            elif a > 0:
-                bound = rhs / a
-                if bound < high:
-                    high = bound
-            else:
-                bound = rhs / a
-                if bound > low:
-                    low = bound
+    for nx, ny, nz, d in planes:
+        va = nx * Pa_x + ny * Pa_y + nz * Pa_z + d
+        vb = nx * Pb_x + ny * Pb_y + nz * Pb_z + d
+        worst = va if va > vb else vb
+        if worst > EPS_AXIS:
+            print(0)
+            return
 
-            if low > high + 1e-9:
-                return False
+    R_max = float('inf')
 
-        low = max(low, ta)
-        high = min(high, tb)
-        return low <= high + 1e-9
+    for nx, ny, nz, d in planes:
+        va = nx * Pa_x + ny * Pa_y + nz * Pa_z + d
+        vb = nx * Pb_x + ny * Pb_y + nz * Pb_z + d
+        worst = va if va > vb else vb  
 
-    if not ok(0.0):
-        print(0)
-        return
+        ndl = nx * Lhx + ny * Lhy + nz * Lhz
+        n_perp_sq = 1.0 - ndl * ndl
 
-    hi = float("inf")
-    for n, h in planes:
-        proj = dot(n, L_hat)
-        k_sq = 1.0 - proj * proj
-        if k_sq < 0.0:
-            k_sq = 0.0
-        k = math.sqrt(k_sq)
-        if k < EPS:
+        if n_perp_sq <= EPS_PARALLEL:
             continue
 
-        a = dot(n, L)
-        b = dot(n, C1)
+        if n_perp_sq < 0.0:
+            n_perp_sq = 0.0
+        n_perp = math.sqrt(n_perp_sq)
 
-        if abs(a) < EPS:
-            cand = (h - b) / k
-        elif a > 0:
-            cand = (h - b - a * ta) / k
-        else:
-            cand = (h - b - a * tb) / k
+        gap = -worst
+        if gap < 0.0:
+            gap = 0.0
 
-        if cand < hi:
-            hi = cand
+        R_limit = gap / n_perp
+        if R_limit < R_max:
+            R_max = R_limit
 
-    if not math.isfinite(hi) or hi <= 0.0:
+    if not math.isfinite(R_max):
         print(0)
         return
 
-    lo = 0.0
-    for _ in range(70):
-        mid = (lo + hi) * 0.5
-        if ok(mid):
-            lo = mid
-        else:
-            hi = mid
-
-    if lo <= 1e-7:
+    if R_max <= EPS_R:
         print(0)
-        return
-
-    print("1 {:.5f}".format(lo))
+    else:
+        print("1 {:.5f}".format(R_max))
 
 
 if __name__ == "__main__":
-    solve()
+    main()

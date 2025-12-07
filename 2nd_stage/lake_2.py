@@ -1,396 +1,384 @@
-import sys
 import math
 
-EPS = 1e-9
-EPS_T = 1e-7
+def vvod_dannyh():
+    with open('input.txt', 'r') as f:
+        nachalnaya_tochka = tuple(map(float, f.readline().split()))
+        konechnaya_tochka = tuple(map(float, f.readline().split()))
+        skorost = float(f.readline())
+        napravlenie_kamery = tuple(map(float, f.readline().split()))
+        kolichestvo_lodok, kolichestvo_gor = map(int, f.readline().split())
+        
+        lodki = []
+        for _ in range(kolichestvo_lodok):
+            lodki.append(tuple(map(float, f.readline().split())))
+        
+        gori = []
+        for _ in range(kolichestvo_gor):
+            gori.append(tuple(map(float, f.readline().split())))
+    
+    return nachalnaya_tochka, konechnaya_tochka, skorost, napravlenie_kamery, lodki, gori
 
-# ---------- Ввод ----------
+def postroit_bazis_kamery(napravlenie_kamery):
+    dir_x, dir_y, dir_z = napravlenie_kamery
+    dlina_napravleniya = math.sqrt(dir_x * dir_x + dir_y * dir_y + dir_z * dir_z)
+    
+    if dlina_napravleniya < 1e-9:
+        return None
+    
+    vpered_x = dir_x / dlina_napravleniya
+    vpered_y = dir_y / dlina_napravleniya
+    vpered_z = dir_z / dlina_napravleniya
+    
+    if abs(dir_x) + abs(dir_y) > 1e-9:
+        vpravo_temp_x = -dir_y
+        vpravo_temp_y = dir_x
+        vpravo_temp_z = 0.0
+    else:
+        vpravo_temp_x = 1.0
+        vpravo_temp_y = 0.0
+        vpravo_temp_z = 0.0
+    
+    dlina_vpravo_temp = math.sqrt(vpravo_temp_x * vpravo_temp_x + 
+                                  vpravo_temp_y * vpravo_temp_y + 
+                                  vpravo_temp_z * vpravo_temp_z)
+    vpravo_x = vpravo_temp_x / dlina_vpravo_temp
+    vpravo_y = vpravo_temp_y / dlina_vpravo_temp
+    vpravo_z = vpravo_temp_z / dlina_vpravo_temp
+    
+    vverh_x = vpered_y * vpravo_z - vpered_z * vpravo_y
+    vverh_y = vpered_z * vpravo_x - vpered_x * vpravo_z
+    vverh_z = vpered_x * vpravo_y - vpered_y * vpravo_x
+    
+    return (vpered_x, vpered_y, vpered_z), (vpravo_x, vpravo_y, vpravo_z), (vverh_x, vverh_y, vverh_z)
 
-data = sys.stdin.read().strip().split()
-if not data:
-    # Пустой ввод – просто ничего
-    print("0.00000")
-    print(0)
-    sys.exit(0)
+def predobrabotka_gor(gori):
+    obrabotannye = []
+    for gora_x, gora_y, vysota_gori, radius_gori in gori:
+        if vysota_gori <= 1e-9 or radius_gori <= 1e-9:
+            obrabotannye.append(None)
+            continue
+        kvadrat_otnosheniya_radiusa = (radius_gori * radius_gori) / (vysota_gori * vysota_gori)
+        kvadrat_radiusa = radius_gori * radius_gori
+        obrabotannye.append((gora_x, gora_y, vysota_gori, radius_gori, 
+                         kvadrat_otnosheniya_radiusa, kvadrat_radiusa))
+    return obrabotannye
 
-it = iter(data)
-
-def next_float():
-    return float(next(it))
-
-def next_int():
-    return int(next(it))
-
-# Точка A
-xA = next_float()
-yA = next_float()
-zA = next_float()
-
-# Точка B
-xB_end = next_float()
-yB_end = next_float()
-zB_end = next_float()
-
-# Скорость
-v = next_float()
-
-# Направление камеры l
-lx = next_float()
-ly = next_float()
-lz = next_float()
-
-# N лодок, M гор
-N = next_int()
-M = next_int()
-
-boats = []
-for _ in range(N):
-    xb = next_float()
-    yb = next_float()
-    hb = next_float()
-    boats.append((xb, yb, hb))
-
-mountains = []
-for _ in range(M):
-    xm = next_float()
-    ym = next_float()
-    hm = next_float()
-    rm = next_float()
-    mountains.append((xm, ym, hm, rm))
-
-# ---------- Базис камеры (f, r, u) ----------
-
-len_l = math.sqrt(lx*lx + ly*ly + lz*lz)
-if len_l < EPS:
-    # камера не определена – считаем, что ничего не видно
-    print("0.00000")
-    print(0)
-    sys.exit(0)
-
-fx = lx / len_l
-fy = ly / len_l
-fz = lz / len_l
-
-# r – горизонтальная ось (в плоскости z=0)
-if abs(lx) + abs(ly) > EPS:
-    r0x = -ly
-    r0y = lx
-    r0z = 0.0
-else:
-    r0x = 1.0
-    r0y = 0.0
-    r0z = 0.0
-
-len_r0 = math.sqrt(r0x*r0x + r0y*r0y + r0z*r0z)
-rx = r0x / len_r0
-ry = r0y / len_r0
-rz = r0z / len_r0  # будет 0
-
-# u – вертикальная ось
-ux = fy*rz - fz*ry
-uy = fz*rx - fx*rz
-uz = fx*ry - fy*rx
-
-# ---------- Предобработка гор (часть, не зависящая от камеры) ----------
-
-# Для каждой горы храним: (xm, ym, hm, rm, alpha, rm2)
-pre_mountains = []
-for (xm, ym, hm, rm) in mountains:
-    if hm <= EPS or rm <= EPS:
-        pre_mountains.append(None)
-        continue
-    alpha = (rm * rm) / (hm * hm)
-    rm2 = rm * rm
-    pre_mountains.append((xm, ym, hm, rm, alpha, rm2))
-
-# ---------- Вспомогательные функции для статической проверки ----------
-
-def in_camera_fov_at(Cx, Cy, Cz, xb, yb, hb):
-    """Лодка (xb,yb,hb) в кадре камеры, находящейся в C=(Cx,Cy,Cz)?"""
-    dx = xb - Cx
-    dy = yb - Cy
-    dz = hb - Cz
-
-    zc = dx * fx + dy * fy + dz * fz
-    if zc <= EPS:
+def lodka_v_kadre(poziciya_kamery, poziciya_lodki, bazis_kamery):
+    kamera_x, kamera_y, kamera_z = poziciya_kamery
+    lodka_x, lodka_y, vysota_lodki = poziciya_lodki
+    vpered, vpravo, vverh = bazis_kamery
+    
+    vpered_x, vpered_y, vpered_z = vpered
+    vpravo_x, vpravo_y, vpravo_z = vpravo
+    vverh_x, vverh_y, vverh_z = vverh
+    
+    vektor_k_lodke_x = lodka_x - kamera_x
+    vektor_k_lodke_y = lodka_y - kamera_y
+    vektor_k_lodke_z = vysota_lodki - kamera_z
+    
+    glubina = vektor_k_lodke_x * vpered_x + vektor_k_lodke_y * vpered_y + vektor_k_lodke_z * vpered_z
+    if glubina <= 1e-9:
         return False
-
-    xc = dx * rx + dy * ry + dz * rz
-    yc = dx * ux + dy * uy + dz * uz
-
-    if abs(xc) > zc + 1e-12:
+    
+    gorizontalnoe_smeshchenie = vektor_k_lodke_x * vpravo_x + vektor_k_lodke_y * vpravo_y + vektor_k_lodke_z * vpravo_z
+    vertikalnoe_smeshchenie = vektor_k_lodke_x * vverh_x + vektor_k_lodke_y * vverh_y + vektor_k_lodke_z * vverh_z
+    
+    if abs(gorizontalnoe_smeshchenie) > glubina + 1e-12:
         return False
-    if abs(yc) > zc + 1e-12:
+    if abs(vertikalnoe_smeshchenie) > glubina + 1e-12:
         return False
     return True
 
+def nayti_blizhayshuyu_tochku_na_luche_xy(nachalo_lucha_x, nachalo_lucha_y, napravlenie_lucha_x, napravlenie_lucha_y, 
+                                  cel_x, cel_y):
+    vektor_k_celi_x = cel_x - nachalo_lucha_x
+    vektor_k_celi_y = cel_y - nachalo_lucha_y
+    kvadrat_dliny_napravleniya = napravlenie_lucha_x * napravlenie_lucha_x + napravlenie_lucha_y * napravlenie_lucha_y
+    
+    if kvadrat_dliny_napravleniya < 1e-9:
+        return nachalo_lucha_x, nachalo_lucha_y
+    
+    parametr_proekcii = (napravlenie_lucha_x * vektor_k_celi_x + napravlenie_lucha_y * vektor_k_celi_y) / kvadrat_dliny_napravleniya
+    parametr_proekcii = max(0.0, min(1.0, parametr_proekcii))
+    
+    blizhayshaya_x = nachalo_lucha_x + napravlenie_lucha_x * parametr_proekcii
+    blizhayshaya_y = nachalo_lucha_y + napravlenie_lucha_y * parametr_proekcii
+    return blizhayshaya_x, blizhayshaya_y
 
-def mountain_blocks_boat_at(Cx, Cy, Cz, boat, pm):
-    """Гора (предобработанная как pm) заслоняет лодку из точки C?"""
-    if pm is None:
+def nayti_interval_po_vysote(kamera_z, napravlenie_lucha_z, vysota_gori):
+    if abs(napravlenie_lucha_z) < 1e-9:
+        if kamera_z < -1e-9 or kamera_z > vysota_gori + 1e-9:
+            return None
+        return 0.0, 1.0
+    
+    t_min = -1e30
+    t_max = 1e30
+    
+    t_na_nule = -kamera_z / napravlenie_lucha_z
+    if napravlenie_lucha_z > 0:
+        t_min = max(t_min, t_na_nule)
+    else:
+        t_max = min(t_max, t_na_nule)
+    
+    t_na_vershine = (vysota_gori - kamera_z) / napravlenie_lucha_z
+    if napravlenie_lucha_z > 0:
+        t_max = min(t_max, t_na_vershine)
+    else:
+        t_min = max(t_min, t_na_vershine)
+    
+    t_z_min = max(0.0, t_min)
+    t_z_max = min(1.0, t_max)
+    
+    if t_z_min > t_z_max + 1e-9:
+        return None
+    
+    return t_z_min, t_z_max
+
+def vychislit_kvadratichnuyu(t, koef_a, koef_b, koef_c):
+    return (koef_a * t + koef_b) * t + koef_c
+
+def gora_zakryvaet_lodku(poziciya_kamery, poziciya_lodki, obrabotannaya_gora):
+    if obrabotannaya_gora is None:
         return False
-
-    xb, yb, hb = boat
-    xm, ym, hm, rm, alpha, rm2 = pm
-
-    # Вектор от камеры к лодке
-    dx = xb - Cx
-    dy = yb - Cy
-    dz = hb - Cz
-
-    # Быстрый XY-фильтр
-    if abs(dx) < EPS and abs(dy) < EPS:
-        # почти вертикальный луч — ближайшая по XY точка это C
-        dist2_xy = (Cx - xm) * (Cx - xm) + (Cy - ym) * (Cy - ym)
-        if dist2_xy > rm2 + 1e-8:
+    
+    kamera_x, kamera_y, kamera_z = poziciya_kamery
+    lodka_x, lodka_y, vysota_lodki = poziciya_lodki
+    gora_x, gora_y, vysota_gori, radius_gori, kvadrat_otnosheniya_radiusa, kvadrat_radiusa = obrabotannaya_gora
+    
+    napravlenie_lucha_x = lodka_x - kamera_x
+    napravlenie_lucha_y = lodka_y - kamera_y
+    napravlenie_lucha_z = vysota_lodki - kamera_z
+    
+    if abs(napravlenie_lucha_x) < 1e-9 and abs(napravlenie_lucha_y) < 1e-9:
+        kvadrat_rasstoyaniya = (kamera_x - gora_x) * (kamera_x - gora_x) + \
+                      (kamera_y - gora_y) * (kamera_y - gora_y)
+        if kvadrat_rasstoyaniya > kvadrat_radiusa + 1e-8:
             return False
     else:
-        vx = dx
-        vy = dy
-        wx = xm - Cx
-        wy = ym - Cy
-        v2 = vx*vx + vy*vy
-        t_proj = (vx*wx + vy*wy) / v2
-        if t_proj < 0.0:
-            t_clamped = 0.0
-        elif t_proj > 1.0:
-            t_clamped = 1.0
-        else:
-            t_clamped = t_proj
-        closest_x = Cx + vx * t_clamped
-        closest_y = Cy + vy * t_clamped
-        dxm = closest_x - xm
-        dym = closest_y - ym
-        dist2_xy = dxm*dxm + dym*dym
-        if dist2_xy > rm2 + 1e-8:
+        blizhayshaya_x, blizhayshaya_y = nayti_blizhayshuyu_tochku_na_luche_xy(
+            kamera_x, kamera_y, napravlenie_lucha_x, napravlenie_lucha_y, gora_x, gora_y)
+        dx_gora = blizhayshaya_x - gora_x
+        dy_gora = blizhayshaya_y - gora_y
+        kvadrat_rasstoyaniya = dx_gora * dx_gora + dy_gora * dy_gora
+        if kvadrat_rasstoyaniya > kvadrat_radiusa + 1e-8:
             return False
-
-    # Интервал по высоте: 0 <= z(t) <= h_m
-    zC = Cz
-    if abs(dz) < EPS:
-        # z(t) постоянна
-        if zC < -EPS or zC > hm + EPS:
-            return False
-        t_z_min = 0.0
-        t_z_max = 1.0
-    else:
-        t1_min = -1e30
-        t1_max = 1e30
-
-        # z >= 0
-        t_zero = -zC / dz
-        if dz > 0:
-            if t_zero > t1_min:
-                t1_min = t_zero
-        else:
-            if t_zero < t1_max:
-                t1_max = t_zero
-
-        # z <= hm
-        t_hm = (hm - zC) / dz
-        if dz > 0:
-            if t_hm < t1_max:
-                t1_max = t_hm
-        else:
-            if t_hm > t1_min:
-                t1_min = t_hm
-
-        t_z_min = max(0.0, t1_min)
-        t_z_max = min(1.0, t1_max)
-
-        if t_z_min > t_z_max + EPS:
-            return False
-
-    t0 = max(t_z_min, EPS_T)
-    t1 = t_z_max
-    if t0 > t1 + EPS:
+    
+    interval_vysoty = nayti_interval_po_vysote(kamera_z, napravlenie_lucha_z, vysota_gori)
+    if interval_vysoty is None:
         return False
+    
+    t_z_min, t_z_max = interval_vysoty
+    t_nachalo = max(t_z_min, 1e-7)
+    t_konec = t_z_max
+    
+    if t_nachalo > t_konec + 1e-9:
+        return False
+    
+    smeshchenie_x = kamera_x - gora_x
+    smeshchenie_y = kamera_y - gora_y
+    kvadrat_rasstoyaniya_kamery = smeshchenie_x * smeshchenie_x + smeshchenie_y * smeshchenie_y
+    raznica_vysoty = vysota_gori - kamera_z
+    
+    koef_a_xy = napravlenie_lucha_x * napravlenie_lucha_x + napravlenie_lucha_y * napravlenie_lucha_y
+    koef_b_xy = 2.0 * (smeshchenie_x * napravlenie_lucha_x + smeshchenie_y * napravlenie_lucha_y)
+    koef_c_xy = kvadrat_rasstoyaniya_kamery
+    
+    koef_a_konus = kvadrat_otnosheniya_radiusa * napravlenie_lucha_z * napravlenie_lucha_z
+    koef_b_konus = -2.0 * kvadrat_otnosheniya_radiusa * raznica_vysoty * napravlenie_lucha_z
+    koef_c_konus = kvadrat_otnosheniya_radiusa * raznica_vysoty * raznica_vysoty
+    
+    koef_a = koef_a_xy - koef_a_konus
+    koef_b = koef_b_xy - koef_b_konus
+    koef_c = koef_c_xy - koef_c_konus
+    
+    if abs(koef_a) < 1e-12:
+        znachenie_na_nachale = vychislit_kvadratichnuyu(t_nachalo, koef_a, koef_b, koef_c)
+        znachenie_na_konce = vychislit_kvadratichnuyu(t_konec, koef_a, koef_b, koef_c)
+        min_znachenie = min(znachenie_na_nachale, znachenie_na_konce)
+        return min_znachenie <= 1e-9
+    
+    parametr_vershiny = -koef_b / (2.0 * koef_a)
+    kandidaty = [t_nachalo, t_konec]
+    if t_nachalo - 1e-12 <= parametr_vershiny <= t_konec + 1e-12:
+        kandidaty.append(parametr_vershiny)
+    
+    min_znachenie = float('inf')
+    for kandidat in kandidaty:
+        ogranichennyy = max(t_nachalo, min(t_konec, kandidat))
+        znachenie = vychislit_kvadratichnuyu(ogranichennyy, koef_a, koef_b, koef_c)
+        if znachenie < min_znachenie:
+            min_znachenie = znachenie
+    
+    return min_znachenie <= 1e-9
 
-    # Радиусное неравенство g(t) <= 0
-    ex = Cx - xm
-    ey = Cy - ym
-    C_d = ex*ex + ey*ey
-    q0 = hm - Cz
-
-    # X^2 + Y^2
-    A1 = dx*dx + dy*dy
-    B1 = 2.0 * (ex*dx + ey*dy)
-    C1 = C_d
-
-    # r_m^2 * (1 - Z/h_m)^2
-    A2 = alpha * dz * dz
-    B2 = -2.0 * alpha * q0 * dz
-    C2 = alpha * q0 * q0
-
-    A = A1 - A2
-    B = B1 - B2
-    Ccoef = C1 - C2
-
-    def g_val(t):
-        return (A * t + B) * t + Ccoef
-
-    if abs(A) < 1e-12:
-        g0 = g_val(t0)
-        g1 = g_val(t1)
-        g_min = g0 if g0 < g1 else g1
-        return g_min <= EPS
-    else:
-        t_vertex = -B / (2.0 * A)
-        candidates = [t0, t1]
-        if t_vertex > t0 - 1e-12 and t_vertex < t1 + 1e-12:
-            candidates.append(t_vertex)
-
-        g_min = float('inf')
-        for t in candidates:
-            if t < t0:
-                tt = t0
-            elif t > t1:
-                tt = t1
-            else:
-                tt = t
-            gv = g_val(tt)
-            if gv < g_min:
-                g_min = gv
-
-        return g_min <= EPS
-
-
-# ---------- Функция видимости для данного s (0..1) ----------
-
-# Вектор AB и длина
-ABx = xB_end - xA
-ABy = yB_end - yA
-ABz = zB_end - zA
-AB_len = math.sqrt(ABx*ABx + ABy*ABy + ABz*ABz)
-
-# Если A и B совпадают или скорость нулевая – камера не движется
-if AB_len < EPS or v <= 0:
-    # Просто решаем статическую задачу из точки A
-    Cx0 = xA
-    Cy0 = yA
-    Cz0 = zA
-
-    visible_indices = []
-    for i, boat in enumerate(boats, start=1):
-        xb, yb, hb = boat
-        if not in_camera_fov_at(Cx0, Cy0, Cz0, xb, yb, hb):
+def reshit_staticheskiy_sluchay(poziciya_kamery, lodki, obrabotannye_gori, bazis_kamery):
+    vidimye_lodki = []
+    for nomer_lodki, lodka in enumerate(lodki, start=1):
+        if not lodka_v_kadre(poziciya_kamery, lodka, bazis_kamery):
             continue
-        blocked = False
-        for pm in pre_mountains:
-            if pm is None:
+        
+        zakryta = False
+        for obrabotannaya_gora in obrabotannye_gori:
+            if obrabotannaya_gora is None:
                 continue
-            if mountain_blocks_boat_at(Cx0, Cy0, Cz0, boat, pm):
-                blocked = True
+            if gora_zakryvaet_lodku(poziciya_kamery, lodka, obrabotannaya_gora):
+                zakryta = True
                 break
-        if not blocked:
-            visible_indices.append(i)
+        
+        if not zakryta:
+            vidimye_lodki.append(nomer_lodki)
+    
+    return vidimye_lodki
 
-    print("0.00000")
-    print(len(visible_indices))
-    for idx in visible_indices:
-        print(idx)
-    sys.exit(0)
+def poluchit_poziciyu_kamery_na_progresse(nachalnaya_tochka, konechnaya_tochka, vektor_puti, progress):
+    nachalo_x, nachalo_y, nachalo_z = nachalnaya_tochka
+    put_dx, put_dy, put_dz = vektor_puti
+    return (nachalo_x + put_dx * progress,
+            nachalo_y + put_dy * progress,
+            nachalo_z + put_dz * progress)
 
-T_total = AB_len / v  # полное время движения
+def poluchit_vidimye_lodki_na_progresse(nachalnaya_tochka, konechnaya_tochka, vektor_puti, progress,
+                                   lodki, obrabotannye_gori, bazis_kamery):
+    poziciya_kamery = poluchit_poziciyu_kamery_na_progresse(nachalnaya_tochka, konechnaya_tochka, vektor_puti, progress)
+    return reshit_staticheskiy_sluchay(poziciya_kamery, lodki, obrabotannye_gori, bazis_kamery)
 
-def camera_pos_s(s):
-    """Положение камеры для параметра s в [0,1]."""
-    return (xA + ABx * s,
-            yA + ABy * s,
-            zA + ABz * s)
+schetchik_vychisleniy = 0
+kesh = {}
+luchshee_kolichestvo_vidimyh = -1
+luchshiy_progress = 0.0
+luchshie_vidimye_lodki = []
 
-def visible_at_s(s):
-    """Возвращает (count, [indices]) для параметра s."""
-    Cx, Cy, Cz = camera_pos_s(s)
-    visible = []
-    for i, boat in enumerate(boats, start=1):
-        xb, yb, hb = boat
-        if not in_camera_fov_at(Cx, Cy, Cz, xb, yb, hb):
-            continue
-        blocked = False
-        for pm in pre_mountains:
-            if pm is None:
-                continue
-            if mountain_blocks_boat_at(Cx, Cy, Cz, boat, pm):
-                blocked = True
-                break
-        if not blocked:
-            visible.append(i)
-    return len(visible), visible
-
-# ---------- Адаптивный поиск по s ∈ [0,1] ----------
-
-# Ограничения на рекурсию и число вычислений
-MAX_DEPTH = 16         # глубина деления отрезка (2^16 ~ 65k подотрезков в худшем случае)
-MAX_EVALS = 1500       # максимум вызовов visible_at_s
-EVALS = 0
-
-best_cnt = -1
-best_s = 0.0
-best_list = []
-
-# Кеш значений, чтобы не пересчитывать одинаковые s
-cache = {}
-
-def get_visible_cached(s):
-    global EVALS
-    if s in cache:
-        return cache[s]
-    if EVALS >= MAX_EVALS:
-        # Дальше не считаем, возвращаем что-нибудь
+def poluchit_vidimye_s_keshem(nachalnaya_tochka, konechnaya_tochka, vektor_puti, progress,
+                               lodki, obrabotannye_gori, bazis_kamery):
+    global schetchik_vychisleniy, kesh
+    
+    if progress in kesh:
+        return kesh[progress]
+    
+    if schetchik_vychisleniy >= 1500:
         return 0, []
-    cnt, lst = visible_at_s(s)
-    cache[s] = (cnt, lst)
-    EVALS += 1
-    return cnt, lst
+    
+    vidimye_lodki = poluchit_vidimye_lodki_na_progresse(
+        nachalnaya_tochka, konechnaya_tochka, vektor_puti, progress,
+        lodki, obrabotannye_gori, bazis_kamery)
+    
+    kolichestvo = len(vidimye_lodki)
+    kesh[progress] = (kolichestvo, vidimye_lodki)
+    schetchik_vychisleniy += 1
+    return kolichestvo, vidimye_lodki
 
-def update_best(s, cnt, lst):
-    global best_cnt, best_s, best_list
-    if cnt > best_cnt or (cnt == best_cnt and s < best_s):
-        best_cnt = cnt
-        best_s = s
-        best_list = lst
+def obnovit_luchshiy_rezultat(progress, kolichestvo_vidimyh, vidimye_lodki):
+    global luchshee_kolichestvo_vidimyh, luchshiy_progress, luchshie_vidimye_lodki
+    
+    if kolichestvo_vidimyh > luchshee_kolichestvo_vidimyh or \
+       (kolichestvo_vidimyh == luchshee_kolichestvo_vidimyh and progress < luchshiy_progress):
+        luchshee_kolichestvo_vidimyh = kolichestvo_vidimyh
+        luchshiy_progress = progress
+        luchshie_vidimye_lodki = vidimye_lodki
 
-def dfs(l, fl, flist, r, fr, frist, depth):
-    if depth >= MAX_DEPTH or EVALS >= MAX_EVALS:
-        # обновляем по концам и выходим
-        update_best(l, fl, flist)
-        update_best(r, fr, frist)
+def poisk_optimalnogo_momenta(nachalnaya_tochka, konechnaya_tochka, vektor_puti,
+                              lodki, obrabotannye_gori, bazis_kamery,
+                              levyy_progress, levoe_kolichestvo, levye_lodki,
+                              pravyy_progress, pravoe_kolichestvo, pravye_lodki, glubina):
+    global schetchik_vychisleniy
+    
+    if glubina >= 16 or schetchik_vychisleniy >= 1500:
+        obnovit_luchshiy_rezultat(levyy_progress, levoe_kolichestvo, levye_lodki)
+        obnovit_luchshiy_rezultat(pravyy_progress, pravoe_kolichestvo, pravye_lodki)
         return
-
-    # оценка: если максимум на концах уже ниже глобального – см. ниже
-    local_max = fl if fl > fr else fr
-    if local_max < best_cnt:
-        # на этом отрезке не улучшим
-        update_best(l, fl, flist)
-        update_best(r, fr, frist)
+    
+    lokalnyy_maksimum = max(levoe_kolichestvo, pravoe_kolichestvo)
+    if lokalnyy_maksimum < luchshee_kolichestvo_vidimyh:
+        obnovit_luchshiy_rezultat(levyy_progress, levoe_kolichestvo, levye_lodki)
+        obnovit_luchshiy_rezultat(pravyy_progress, pravoe_kolichestvo, pravye_lodki)
         return
-
-    m = 0.5 * (l + r)
-    fm, fmlist = get_visible_cached(m)
-    update_best(m, fm, fmlist)
-
-    if max(fl, fm, fr) < best_cnt:
-        # нет смысла делить дальше
+    
+    sredniy_progress = 0.5 * (levyy_progress + pravyy_progress)
+    srednee_kolichestvo, srednie_lodki = poluchit_vidimye_s_keshem(
+        nachalnaya_tochka, konechnaya_tochka, vektor_puti, sredniy_progress,
+        lodki, obrabotannye_gori, bazis_kamery)
+    obnovit_luchshiy_rezultat(sredniy_progress, srednee_kolichestvo, srednie_lodki)
+    
+    if max(levoe_kolichestvo, srednee_kolichestvo, pravoe_kolichestvo) < luchshee_kolichestvo_vidimyh:
         return
-
-    dfs(l, fl, flist, m, fm, fmlist, depth + 1)
-    if EVALS >= MAX_EVALS:
+    
+    poisk_optimalnogo_momenta(nachalnaya_tochka, konechnaya_tochka, vektor_puti,
+                              lodki, obrabotannye_gori, bazis_kamery,
+                              levyy_progress, levoe_kolichestvo, levye_lodki,
+                              sredniy_progress, srednee_kolichestvo, srednie_lodki, glubina + 1)
+    
+    if schetchik_vychisleniy >= 1500:
         return
-    dfs(m, fm, fmlist, r, fr, frist, depth + 1)
+    
+    poisk_optimalnogo_momenta(nachalnaya_tochka, konechnaya_tochka, vektor_puti,
+                              lodki, obrabotannye_gori, bazis_kamery,
+                              sredniy_progress, srednee_kolichestvo, srednie_lodki,
+                              pravyy_progress, pravoe_kolichestvo, pravye_lodki, glubina + 1)
 
-# стартовые точки s=0 и s=1
-f0, l0 = get_visible_cached(0.0)
-f1, l1 = get_visible_cached(1.0)
-update_best(0.0, f0, l0)
-update_best(1.0, f1, l1)
+def nayti_optimalnyy(nachalnaya_tochka, konechnaya_tochka, vektor_puti, polnoe_vremya,
+                     lodki, obrabotannye_gori, bazis_kamery):
+    global schetchik_vychisleniy, kesh, luchshee_kolichestvo_vidimyh, luchshiy_progress, luchshie_vidimye_lodki
+    
+    schetchik_vychisleniy = 0
+    kesh = {}
+    luchshee_kolichestvo_vidimyh = -1
+    luchshiy_progress = 0.0
+    luchshie_vidimye_lodki = []
+    
+    levoe_kolichestvo, levye_lodki = poluchit_vidimye_s_keshem(
+        nachalnaya_tochka, konechnaya_tochka, vektor_puti, 0.0,
+        lodki, obrabotannye_gori, bazis_kamery)
+    pravoe_kolichestvo, pravye_lodki = poluchit_vidimye_s_keshem(
+        nachalnaya_tochka, konechnaya_tochka, vektor_puti, 1.0,
+        lodki, obrabotannye_gori, bazis_kamery)
+    
+    obnovit_luchshiy_rezultat(0.0, levoe_kolichestvo, levye_lodki)
+    obnovit_luchshiy_rezultat(1.0, pravoe_kolichestvo, pravye_lodki)
+    
+    poisk_optimalnogo_momenta(nachalnaya_tochka, konechnaya_tochka, vektor_puti,
+                              lodki, obrabotannye_gori, bazis_kamery,
+                              0.0, levoe_kolichestvo, levye_lodki,
+                              1.0, pravoe_kolichestvo, pravye_lodki, 0)
+    
+    return luchshiy_progress * polnoe_vremya, luchshie_vidimye_lodki
 
-dfs(0.0, f0, l0, 1.0, f1, l1, 0)
+def main():
+    nachalnaya_tochka, konechnaya_tochka, skorost, napravlenie_kamery, lodki, gori = vvod_dannyh()
+    
+    bazis_kamery = postroit_bazis_kamery(napravlenie_kamery)
+    if bazis_kamery is None:
+        print("0.00000")
+        print(0)
+        return
+    
+    obrabotannye_gori = predobrabotka_gor(gori)
+    
+    nachalo_x, nachalo_y, nachalo_z = nachalnaya_tochka
+    konec_x, konec_y, konec_z = konechnaya_tochka
+    
+    put_dx = konec_x - nachalo_x
+    put_dy = konec_y - nachalo_y
+    put_dz = konec_z - nachalo_z
+    dlina_puti = math.sqrt(put_dx * put_dx + put_dy * put_dy + put_dz * put_dz)
+    
+    if dlina_puti < 1e-9 or skorost <= 0:
+        vidimye_lodki = reshit_staticheskiy_sluchay(nachalnaya_tochka, lodki, obrabotannye_gori, bazis_kamery)
+        print("0.00000")
+        print(len(vidimye_lodki))
+        for nomer_lodki in vidimye_lodki:
+            print(nomer_lodki)
+        return
+    
+    polnoe_vremya = dlina_puti / skorost
+    vektor_puti = (put_dx, put_dy, put_dz)
+    
+    optimalnoe_vremya, vidimye_lodki = nayti_optimalnyy(nachalnaya_tochka, konechnaya_tochka, vektor_puti, polnoe_vremya,
+                                 lodki, obrabotannye_gori, bazis_kamery)
+    
+    print(f"{optimalnoe_vremya:.5f}")
+    print(len(vidimye_lodki))
+    for nomer_lodki in vidimye_lodki:
+        print(nomer_lodki)
 
-# ---------- Вывод ----------
-
-t_ans = best_s * T_total
-print(f"{t_ans:.5f}")
-print(len(best_list))
-for idx in best_list:
-    print(idx)
+if __name__ == "__main__":
+    main()

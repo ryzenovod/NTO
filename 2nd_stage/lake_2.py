@@ -342,12 +342,18 @@ def nayti_optimalnyy(nachalnaya_tochka, konechnaya_tochka, vektor_puti, polnoe_v
     
     return luchshiy_progress * polnoe_vremya, luchshie_vidimye_lodki
 
+def otformatirovat_vremya(vremya):
+    if abs(vremya - round(vremya)) < 1e-9:
+        return str(int(round(vremya)))
+    else:
+        return f"{vremya:.5f}"
+
 def main():
     nachalnaya_tochka, konechnaya_tochka, skorost, napravlenie_kamery, lodki, gori = vvod_dannyh()
     
     bazis_kamery = postroit_bazis_kamery(napravlenie_kamery)
     if bazis_kamery is None:
-        print("0.00000")
+        print("0")
         print(0)
         return
     
@@ -363,7 +369,7 @@ def main():
     
     if dlina_puti < 1e-9 or skorost <= 0:
         vidimye_lodki = reshit_staticheskiy_sluchay(nachalnaya_tochka, lodki, obrabotannye_gori, bazis_kamery)
-        print("0.00000")
+        print("0")
         print(len(vidimye_lodki))
         for nomer_lodki in vidimye_lodki:
             print(nomer_lodki)
@@ -375,7 +381,7 @@ def main():
     optimalnoe_vremya, vidimye_lodki = nayti_optimalnyy(nachalnaya_tochka, konechnaya_tochka, vektor_puti, polnoe_vremya,
                                  lodki, obrabotannye_gori, bazis_kamery)
     
-    print(f"{optimalnoe_vremya:.5f}")
+    print(otformatirovat_vremya(optimalnoe_vremya))
     print(len(vidimye_lodki))
     for nomer_lodki in vidimye_lodki:
         print(nomer_lodki)

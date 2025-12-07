@@ -1,20 +1,20 @@
-import sys
 import math
 
 def vvod_dannyh():
-    nachalnaya_tochka = tuple(map(float, input().split()))
-    konechnaya_tochka = tuple(map(float, input().split()))
-    skorost = float(input())
-    napravlenie_kamery = tuple(map(float, input().split()))
-    kolichestvo_lodok, kolichestvo_gor = map(int, input().split())
-    
-    lodki = []
-    for _ in range(kolichestvo_lodok):
-        lodki.append(tuple(map(float, input().split())))
-    
-    gori = []
-    for _ in range(kolichestvo_gor):
-        gori.append(tuple(map(float, input().split())))
+    with open('input.txt', 'r') as f:
+        nachalnaya_tochka = tuple(map(float, f.readline().split()))
+        konechnaya_tochka = tuple(map(float, f.readline().split()))
+        skorost = float(f.readline())
+        napravlenie_kamery = tuple(map(float, f.readline().split()))
+        kolichestvo_lodok, kolichestvo_gor = map(int, f.readline().split())
+        
+        lodki = []
+        for _ in range(kolichestvo_lodok):
+            lodki.append(tuple(map(float, f.readline().split())))
+        
+        gori = []
+        for _ in range(kolichestvo_gor):
+            gori.append(tuple(map(float, f.readline().split())))
     
     return nachalnaya_tochka, konechnaya_tochka, skorost, napravlenie_kamery, lodki, gori
 
@@ -242,86 +242,105 @@ def poluchit_vidimye_lodki_na_progresse(nachalnaya_tochka, konechnaya_tochka, ve
     poziciya_kamery = poluchit_poziciyu_kamery_na_progresse(nachalnaya_tochka, konechnaya_tochka, vektor_puti, progress)
     return reshit_staticheskiy_sluchay(poziciya_kamery, lodki, obrabotannye_gori, bazis_kamery)
 
-class Poisk_optimalnogo_momenta:
-    def __init__(self, nachalnaya_tochka, konechnaya_tochka, vektor_puti, polnoe_vremya,
-                 lodki, obrabotannye_gori, bazis_kamery):
-        self.nachalnaya_tochka = nachalnaya_tochka
-        self.konechnaya_tochka = konechnaya_tochka
-        self.vektor_puti = vektor_puti
-        self.polnoe_vremya = polnoe_vremya
-        self.lodki = lodki
-        self.obrabotannye_gori = obrabotannye_gori
-        self.bazis_kamery = bazis_kamery
-        
-        self.schetchik_vychisleniy = 0
-        self.kesh = {}
-        self.luchshee_kolichestvo_vidimyh = -1
-        self.luchshiy_progress = 0.0
-        self.luchshie_vidimye_lodki = []
+schetchik_vychisleniy = 0
+kesh = {}
+luchshee_kolichestvo_vidimyh = -1
+luchshiy_progress = 0.0
+luchshie_vidimye_lodki = []
+
+def poluchit_vidimye_s_keshem(nachalnaya_tochka, konechnaya_tochka, vektor_puti, progress,
+                               lodki, obrabotannye_gori, bazis_kamery):
+    global schetchik_vychisleniy, kesh
     
-    def poluchit_vidimye_s_keshem(self, progress):
-        if progress in self.kesh:
-            return self.kesh[progress]
-        
-        if self.schetchik_vychisleniy >= 1500:
-            return 0, []
-        
-        vidimye_lodki = poluchit_vidimye_lodki_na_progresse(
-            self.nachalnaya_tochka, self.konechnaya_tochka, self.vektor_puti, progress,
-            self.lodki, self.obrabotannye_gori, self.bazis_kamery)
-        
-        kolichestvo = len(vidimye_lodki)
-        self.kesh[progress] = (kolichestvo, vidimye_lodki)
-        self.schetchik_vychisleniy += 1
-        return kolichestvo, vidimye_lodki
+    if progress in kesh:
+        return kesh[progress]
     
-    def obnovit_luchshiy_rezultat(self, progress, kolichestvo_vidimyh, vidimye_lodki):
-        if kolichestvo_vidimyh > self.luchshee_kolichestvo_vidimyh or \
-           (kolichestvo_vidimyh == self.luchshee_kolichestvo_vidimyh and progress < self.luchshiy_progress):
-            self.luchshee_kolichestvo_vidimyh = kolichestvo_vidimyh
-            self.luchshiy_progress = progress
-            self.luchshie_vidimye_lodki = vidimye_lodki
+    if schetchik_vychisleniy >= 1500:
+        return 0, []
     
-    def poisk_optimalnogo_momenta(self, levyy_progress, levoe_kolichestvo, levye_lodki,
-                               pravyy_progress, pravoe_kolichestvo, pravye_lodki, glubina):
-        if glubina >= 16 or self.schetchik_vychisleniy >= 1500:
-            self.obnovit_luchshiy_rezultat(levyy_progress, levoe_kolichestvo, levye_lodki)
-            self.obnovit_luchshiy_rezultat(pravyy_progress, pravoe_kolichestvo, pravye_lodki)
-            return
-        
-        lokalnyy_maksimum = max(levoe_kolichestvo, pravoe_kolichestvo)
-        if lokalnyy_maksimum < self.luchshee_kolichestvo_vidimyh:
-            self.obnovit_luchshiy_rezultat(levyy_progress, levoe_kolichestvo, levye_lodki)
-            self.obnovit_luchshiy_rezultat(pravyy_progress, pravoe_kolichestvo, pravye_lodki)
-            return
-        
-        sredniy_progress = 0.5 * (levyy_progress + pravyy_progress)
-        srednee_kolichestvo, srednie_lodki = self.poluchit_vidimye_s_keshem(sredniy_progress)
-        self.obnovit_luchshiy_rezultat(sredniy_progress, srednee_kolichestvo, srednie_lodki)
-        
-        if max(levoe_kolichestvo, srednee_kolichestvo, pravoe_kolichestvo) < self.luchshee_kolichestvo_vidimyh:
-            return
-        
-        self.poisk_optimalnogo_momenta(levyy_progress, levoe_kolichestvo, levye_lodki,
-                                  sredniy_progress, srednee_kolichestvo, srednie_lodki, glubina + 1)
-        
-        if self.schetchik_vychisleniy >= 1500:
-            return
-        
-        self.poisk_optimalnogo_momenta(sredniy_progress, srednee_kolichestvo, srednie_lodki,
-                                  pravyy_progress, pravoe_kolichestvo, pravye_lodki, glubina + 1)
+    vidimye_lodki = poluchit_vidimye_lodki_na_progresse(
+        nachalnaya_tochka, konechnaya_tochka, vektor_puti, progress,
+        lodki, obrabotannye_gori, bazis_kamery)
     
-    def nayti_optimalnyy(self):
-        levoe_kolichestvo, levye_lodki = self.poluchit_vidimye_s_keshem(0.0)
-        pravoe_kolichestvo, pravye_lodki = self.poluchit_vidimye_s_keshem(1.0)
-        
-        self.obnovit_luchshiy_rezultat(0.0, levoe_kolichestvo, levye_lodki)
-        self.obnovit_luchshiy_rezultat(1.0, pravoe_kolichestvo, pravye_lodki)
-        
-        self.poisk_optimalnogo_momenta(0.0, levoe_kolichestvo, levye_lodki,
-                                  1.0, pravoe_kolichestvo, pravye_lodki, 0)
-        
-        return self.luchshiy_progress * self.polnoe_vremya, self.luchshie_vidimye_lodki
+    kolichestvo = len(vidimye_lodki)
+    kesh[progress] = (kolichestvo, vidimye_lodki)
+    schetchik_vychisleniy += 1
+    return kolichestvo, vidimye_lodki
+
+def obnovit_luchshiy_rezultat(progress, kolichestvo_vidimyh, vidimye_lodki):
+    global luchshee_kolichestvo_vidimyh, luchshiy_progress, luchshie_vidimye_lodki
+    
+    if kolichestvo_vidimyh > luchshee_kolichestvo_vidimyh or \
+       (kolichestvo_vidimyh == luchshee_kolichestvo_vidimyh and progress < luchshiy_progress):
+        luchshee_kolichestvo_vidimyh = kolichestvo_vidimyh
+        luchshiy_progress = progress
+        luchshie_vidimye_lodki = vidimye_lodki
+
+def poisk_optimalnogo_momenta(nachalnaya_tochka, konechnaya_tochka, vektor_puti,
+                              lodki, obrabotannye_gori, bazis_kamery,
+                              levyy_progress, levoe_kolichestvo, levye_lodki,
+                              pravyy_progress, pravoe_kolichestvo, pravye_lodki, glubina):
+    global schetchik_vychisleniy
+    
+    if glubina >= 16 or schetchik_vychisleniy >= 1500:
+        obnovit_luchshiy_rezultat(levyy_progress, levoe_kolichestvo, levye_lodki)
+        obnovit_luchshiy_rezultat(pravyy_progress, pravoe_kolichestvo, pravye_lodki)
+        return
+    
+    lokalnyy_maksimum = max(levoe_kolichestvo, pravoe_kolichestvo)
+    if lokalnyy_maksimum < luchshee_kolichestvo_vidimyh:
+        obnovit_luchshiy_rezultat(levyy_progress, levoe_kolichestvo, levye_lodki)
+        obnovit_luchshiy_rezultat(pravyy_progress, pravoe_kolichestvo, pravye_lodki)
+        return
+    
+    sredniy_progress = 0.5 * (levyy_progress + pravyy_progress)
+    srednee_kolichestvo, srednie_lodki = poluchit_vidimye_s_keshem(
+        nachalnaya_tochka, konechnaya_tochka, vektor_puti, sredniy_progress,
+        lodki, obrabotannye_gori, bazis_kamery)
+    obnovit_luchshiy_rezultat(sredniy_progress, srednee_kolichestvo, srednie_lodki)
+    
+    if max(levoe_kolichestvo, srednee_kolichestvo, pravoe_kolichestvo) < luchshee_kolichestvo_vidimyh:
+        return
+    
+    poisk_optimalnogo_momenta(nachalnaya_tochka, konechnaya_tochka, vektor_puti,
+                              lodki, obrabotannye_gori, bazis_kamery,
+                              levyy_progress, levoe_kolichestvo, levye_lodki,
+                              sredniy_progress, srednee_kolichestvo, srednie_lodki, glubina + 1)
+    
+    if schetchik_vychisleniy >= 1500:
+        return
+    
+    poisk_optimalnogo_momenta(nachalnaya_tochka, konechnaya_tochka, vektor_puti,
+                              lodki, obrabotannye_gori, bazis_kamery,
+                              sredniy_progress, srednee_kolichestvo, srednie_lodki,
+                              pravyy_progress, pravoe_kolichestvo, pravye_lodki, glubina + 1)
+
+def nayti_optimalnyy(nachalnaya_tochka, konechnaya_tochka, vektor_puti, polnoe_vremya,
+                     lodki, obrabotannye_gori, bazis_kamery):
+    global schetchik_vychisleniy, kesh, luchshee_kolichestvo_vidimyh, luchshiy_progress, luchshie_vidimye_lodki
+    
+    schetchik_vychisleniy = 0
+    kesh = {}
+    luchshee_kolichestvo_vidimyh = -1
+    luchshiy_progress = 0.0
+    luchshie_vidimye_lodki = []
+    
+    levoe_kolichestvo, levye_lodki = poluchit_vidimye_s_keshem(
+        nachalnaya_tochka, konechnaya_tochka, vektor_puti, 0.0,
+        lodki, obrabotannye_gori, bazis_kamery)
+    pravoe_kolichestvo, pravye_lodki = poluchit_vidimye_s_keshem(
+        nachalnaya_tochka, konechnaya_tochka, vektor_puti, 1.0,
+        lodki, obrabotannye_gori, bazis_kamery)
+    
+    obnovit_luchshiy_rezultat(0.0, levoe_kolichestvo, levye_lodki)
+    obnovit_luchshiy_rezultat(1.0, pravoe_kolichestvo, pravye_lodki)
+    
+    poisk_optimalnogo_momenta(nachalnaya_tochka, konechnaya_tochka, vektor_puti,
+                              lodki, obrabotannye_gori, bazis_kamery,
+                              0.0, levoe_kolichestvo, levye_lodki,
+                              1.0, pravoe_kolichestvo, pravye_lodki, 0)
+    
+    return luchshiy_progress * polnoe_vremya, luchshie_vidimye_lodki
 
 def main():
     nachalnaya_tochka, konechnaya_tochka, skorost, napravlenie_kamery, lodki, gori = vvod_dannyh()
@@ -353,9 +372,8 @@ def main():
     polnoe_vremya = dlina_puti / skorost
     vektor_puti = (put_dx, put_dy, put_dz)
     
-    poisk = Poisk_optimalnogo_momenta(nachalnaya_tochka, konechnaya_tochka, vektor_puti, polnoe_vremya,
+    optimalnoe_vremya, vidimye_lodki = nayti_optimalnyy(nachalnaya_tochka, konechnaya_tochka, vektor_puti, polnoe_vremya,
                                  lodki, obrabotannye_gori, bazis_kamery)
-    optimalnoe_vremya, vidimye_lodki = poisk.nayti_optimalnyy()
     
     print(f"{optimalnoe_vremya:.5f}")
     print(len(vidimye_lodki))
